@@ -1,4 +1,3 @@
-(*使用ECIES算法 将RUE和SUPI一起加密*)
 free c:channel.
 free c1:channel.
 free c2:channel[private].
@@ -44,26 +43,36 @@ fun f3(key, bitstring): key.
 fun f4(key, bitstring): key. 
 fun f5(key, bitstring): key.
 
-(* 保密性查询 *)
-query attacker(K).                    (* 长期密钥保密 *)
-query attacker(SUPI).                 (* 用户身份保密 *)
-query attacker(sec).                 (* 秘密保密 *)
+(*弱一致性WA weak agreement*)
+event beginUE(bitstring).
+event endUE(bitstring).
+event beginSN(bitstring).
+event endSN(bitstring).
+event beginHN(bitstring).
+event endHN(bitstring).
+query x:bitstring;event(endSN(x))==>event(beginUE(x)).
+query x:bitstring;event(endSN(x))==>event(beginSN(x)).
+query x:bitstring;event(endUE(x))==>event(beginHN(x)).
+query x:bitstring;event(endUE(x))==>event(beginSN(x)).
+query x:bitstring;event(endHN(x))==>event(beginUE(x)).
+query x:bitstring;event(endHN(x))==>event(beginHN(x)).
 
 (* UE（用户设备）过程 *)
 let process_UE(K:key,SUPI:bitstring,IDSN:bitstring,pkHN:pkey,IDHN:bitstring) =
     (*使用ECIES算法生成会话密钥ks对SUPI进行加密*)
-    new R:bitstring;(*用于保证每次生成的skUE不同，否则每次生成的skUE是完全相同的，攻击者可以预测到skUE，导致攻击者根据skUE和pkHN生成相同的kUE，最终导致攻击者可以得到SUPI*)
+    new R:bitstring;
     new RUE:bitstring;
     let skUE = Encap(pkHN,R) in
     let pkUE = pk(skUE) in
     let kUE = Ksession(skUE,pkHN) in
     let k1 = first(kUE) in
-    let k2 = second(kUE) in(*将kUE解析为k1和k2，分别用于senc函数和MAC函数*)
+    let k2 = second(kUE) in
     let C1 = senc((SUPI,RUE),k1) in
     let C2 = MAC(C1,k2) in
     let SUCI = (pkUE,C1,C2) in
     out(c1,(SUCI,IDHN));
     in(c1,(RHN:bitstring,AUTN:bitstring,MAC_SN:bitstring));
+    event beginUE(RHN);
     let AK = f5(K,RHN) in 
     let MAC_HN = xor(AUTN,AK) in
     let MAC_SNX = h(MAC_HN,(RUE,IDSN)) in
@@ -79,7 +88,8 @@ let process_UE(K:key,SUPI:bitstring,IDSN:bitstring,pkHN:pkey,IDHN:bitstring) =
     let RES = f2(K,RHN,IDSN) in
     let KSEAF = KDF(K,RHN,IDSN) in
     out(c1,RES);
-    out(c1,senc(sec,KSEAF))
+    out(c1,senc(sec,KSEAF));
+    event endUE(RHN)
     ).
 
 (* SN（安全锚点功能）过程 *)
@@ -87,6 +97,7 @@ let process_SN(IDSN:bitstring) =
   in(c1,(SUCI:bitstring,IDHN:bitstring));
   out(c2,(SUCI,IDHN,IDSN));
   in(c2,(RHN:bitstring,RUE:bitstring,AUTN:bitstring,HXRES:bitstring,KSEAF:key));
+  event beginSN(RHN);
   let (conc:bitstring,MAC_HN:bitstring) = AUTN in
   let MAC_SN = h(MAC_HN,(RUE,IDSN)) in 
   out(c1,(RHN,AUTN,MAC_SN));
@@ -95,6 +106,7 @@ let process_SN(IDSN:bitstring) =
   if HRES = HXRES then
   out(c2,RES);
   in(c2,XSUPI:bitstring);
+  event endSN(RHN);
   0.
 
 (* HN（认证服务器功能）过程 *)
@@ -103,7 +115,7 @@ let process_HN(skHN:skey,IDSN:bitstring,K:key,SUPI:bitstring,IDHN:bitstring) =
   let(Xpk:pkey,XC1:bitstring,XC2:bitstring) = SUCI in
   let kHN = Ksession(skHN,Xpk) in
   let k1 = first(kHN) in
-  let k2 = second(kHN) in(*将kHN解析为k1和k2，分别用于senc函数和MAC函数*)
+  let k2 = second(kHN) in
   let C2 = MAC(XC1,k2) in
   if C2 = XC2 then
   let (XSUPI:bitstring,RUE:bitstring) = sdec(XC1,k1) in
@@ -115,10 +127,12 @@ let process_HN(skHN:skey,IDSN:bitstring,K:key,SUPI:bitstring,IDHN:bitstring) =
   let XRES = f2(K,RHN,XIDSN) in
   let HXRES = h(RHN,XRES) in
   let KSEAF = KDF(K,RHN,XIDSN) in
+  event beginHN(RHN);
   out(c2,(RHN,RUE,AUTN,HXRES,KSEAF));
   in(c2,RES:bitstring);
   if RES = XRES then
   out(c2,XSUPI);
+  event endHN(RHN);
   0
   )
   .
@@ -131,3 +145,6 @@ process
 
 
 
+
+    
+    
