@@ -15,7 +15,7 @@
 | `5GRAKA_NI.pv` | 5.5 KB | 非单射一致性专项：UE-HN（IDSN）、SN-HN（SUPI）2 条查询 |
 | `5GRAKA_wa.pv` | 5.3 KB | 弱一致性专项：begin/end 事件 6 条查询 |
 | `5G_RAKA.pv` | 8.1 KB | 完整模型：双用户（目标 UEA + 非目标 UEB）+ 失同步/失败场景，12 条查询 |
-| `_analysis/` | — | ProVerif 运行输出（含各查询的完整攻击轨迹），由 `proverif` 复现生成 |
+
 
 ---
 
